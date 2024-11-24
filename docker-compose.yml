@@ -1,0 +1,48 @@
+version: '3'
+
+services:
+  frontend:
+    image: chxmxi/frontend-app
+    ports:
+      - "8081:8081"
+    depends_on:
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:8080
+    networks:
+      - mynet
+  
+  backend:
+    image: chxmxi/backend-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=notsosecure
+      - DB_NAME=testdb
+    networks:
+      - mynet
+  
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: notsosecure
+      MYSQL_DATABASE: testdb
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - mynet
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  mynet:
+    driver: bridge
