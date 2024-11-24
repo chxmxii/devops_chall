@@ -1,0 +1,79 @@
+stages:
+  - build
+  - linting
+  - deploy
+
+variables:
+  DOCKERHUB_USERNAME: chxmxi
+  DOCKER_BACKEND_IMAGE: chxmxi/backend-app
+  DOCKER_FRONTEND_IMAGE: chxmxi/frontend-app
+  NAMESPACE: devops-challenge
+
+.build: &build_stage
+  stage: build
+  image: docker:20.10.24
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  before_script:
+    -  echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+build_frontend:
+  <<: *build_stage
+  script:
+    - docker build -t $DOCKER_FRONTEND_IMAGE:latest -f app/frontend/Dockerfile app/frontend
+    - docker push $DOCKER_FRONTEND_IMAGE:latest
+  only:
+    changes:
+      - app/frontend/**/*
+
+build_backend:
+  <<: *build_stage
+  script:
+    - docker build -t $DOCKER_BACKEND_IMAGE:latest -f app/backend/Dockerfile app/backend
+    - docker push $DOCKER_BACKEND_IMAGE:latest
+  only:
+    changes:
+      - app/backend/**/*
+
+lint-charts:
+  stage: linting
+  image: 
+    name: alpine/helm:3.14.0 
+    entrypoint: ['/bin/sh', '-c']
+  script:
+    - for c in charts/*; do
+      helm lint "$c";
+      done
+  allow_failure: false
+  only:
+    changes:
+      - charts/
+
+deploy:
+  stage: deploy
+  image: 
+    name: alpine:latest
+    entrypoint: ['']
+  before_script:
+    - apk add --no-cache curl bash
+    - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+    - chmod +x ./kubectl
+    - mv ./kubectl /usr/local/bin/kubectl
+    - curl -LO https://get.helm.sh/helm-v3.16.3-linux-amd64.tar.gz
+    - tar -zxvf helm-v3.16.3-linux-amd64.tar.gz
+    - mv linux-amd64/helm /usr/local/bin/helm
+    - rm -rf linux-amd64 helm-v3.16.3-linux-amd64.tar.gz
+    - kubectl version
+    - helm version
+    - export KUBECONFIG=/builds/chxmxii/kube_chall.tmp/KUBECONFIG
+  script:
+    - helm upgrade --install frontend helm-charts/back-app --namespace $NAMESPACE --create-namespace
+    - helm upgrade --install backend helm-charts/front-app --namespace $NAMESPACE --create-namespace
+    - helm upgrade --install backend helm-charts/mysql --namespace $NAMESPACE --create-namespace
+    - kubectl create -f netpol.yaml
+  environment:
+    name: rancher
+  only:
+    - main
