@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: hadil0505/backend-image
+  repository: chxmxii/backend
   pullPolicy: IfNotPresent
   tag: "latest"
 
